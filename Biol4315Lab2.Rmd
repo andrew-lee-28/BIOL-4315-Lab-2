@@ -1,0 +1,53 @@
+---
+title: "Lab2"
+output: html_document
+date: "2026-09-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Long Read QC
+## Question 3
+conda install filtlong
+
+## Question 4
+filtlong data/ERR1539006.fastq.gz --keep_percent 0.75 > ./BIOL-4315-Lab-2/data/filteredERR1539006.fastq
+####Output file saved as filtlong_output.fastq
+
+## Question 5
+sequali --outdir ./BIOL-4315-Lab-2/outputs/sequali_report_on_filtered ./BIOL-4315-Lab-2/data/filteredERR1539006.fastq
+####Output files saved as sequali_report_on_filtered
+
+## Question 6
+####Overall, the filteration process greatly increased the quality of the data. Increased the N50 by ~6000 going from 8000 to 14000. Mean and median read length was multiplied by ~2.5x. Read length histogram was highly compressed to a nice peak around the expected fragment size. May not be ideal for downstream analysis due to per-read quality score average being below 12, but per-read histogram greatly increased between filtered and non-filtered. The filtered has all Q scores above 7, compared to only 48% in the unfiltered. On the filtered, base levels seems to sharply occillate compared to the unfiltered, reasoning unknown.
+
+## Question 8
+wget -nc -P BIOL-4315-Lab-2/data/ ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR112/040/ERR11203340/ERR11203340_1.fastq.gz
+wget -nc -P BIOL-4315-Lab-2/data/ ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR112/040/ERR11203340/ERR11203340_2.fastq.gz
+
+## Question 9
+folderq9 <- "~/BIOL-4315-Lab-2/data/q9Group"
+qualityControl <- rqc(path = folderq9, pattern = ".fastq.gz", openBrowser=FALSE, outdir="outputs")
+
+####Sequence Quality per Base per Cycle
+rqcCycleQualityBoxPlot(qualityControl)
+#### The quality itself never drops below 2
+
+####Sequence content per base per cycle
+rqcCycleBaseCallsLinePlot(qualityControl)
+####There are basically no Ns included
+
+####Read frequency plot
+rqcReadFrequencyPlot(qualityControl)
+#Most sequences have exactyle one or two reads, as there is an incredibly sharp fall from 1 to 3
+
+## Question 10
+library(QuasR)
+cq10 <- c("~/BIOL-4315-Lab-2/data/q9Group/ERR11203340_2.fastq.gz", "~/BIOL-4315-Lab-2/data/q9Group/ERR11203340_1.fastq.gz")
+outfiles <- paste0("outputs/", c("processed_2_", "processed_1_"), basename(cq10))
+
+preprocessReads(cq10, outfiles, truncateEndBases = 3)
+
+####NOTE: Q score cuttoff has been removed from this version of QuasR, thus cannot filter by Q score. Ends truncated by 3 bases
