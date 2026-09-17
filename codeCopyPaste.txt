@@ -1,0 +1,128 @@
+#Load the package
+library(Rqc)
+#Get the path to the file
+folder <- system.file(package="ShortRead", "extdata/E-MTAB-1147")
+
+# Feeds fastq.qz files in "folder" to quality check function
+#---rqc checks quality of short reads and makes an object summarizing quality of all short reads
+qcRes <- rqc(path = folder, pattern = ".fastq.gz", openBrowser=FALSE, outdir="outputs")
+
+#---Graph quality of base-prediction accuracy at each base position of all reads. Generally, keep median sample score above 28, trimming the ends of reads when score is below 20.
+rqcCycleQualityBoxPlot(qcRes)
+
+#---Graph percentage of which nucleotide (ATCGN) is at each position. In a perfect world, the lines would be basically parallel but inaccuracy at the start of the annealing process causes high variation at the start of the sequence.
+rqcCycleBaseCallsLinePlot(qcRes)
+
+#---Graph duplicate frequency. During PCR, certain regions can be duplicated and thus overrepresented in the genome. In RNA, 20% duplication is tolerable due to multiple possible reads of the same highly-expressed gene
+rqcReadFrequencyPlot(qcRes)
+
+# Aggregating multiple fastqc reports into a data frame
+#---kmers are certain, usually smaller, repeats of the same nucleotide pattern (ie AG, ATT, TATT, etc). Note that adapters are a type of kmer that are added to the end of reads, which can be trimmed if the exact adapter is known. 
+library(fastqcr)
+# Demo QC directory containing zipped FASTQC reports
+qc.dir <- system.file("fastqc_results", package = "fastqcr")
+qc <- qc_aggregate(qc.dir)
+qc
+
+# Inspecting QC problems
+
+
+# See which modules failed in the most samples
+qc_fails(qc, "module")
+# Or, see which samples failed the most
+qc_fails(qc, "sample")
+
+# Building multi QC reports
+qc_report(qc.dir, result.file = "outputs/multi-qc-report" )
+
+# Building one-sample QC reports (+ interpretation)
+qc.file <- system.file("fastqc_results", "S1_fastqc.zip", package = "fastqcr")
+
+# View the report rendered by R functions
+qc_report(qc.file, result.file = "outputs/one-sample-report",
+          interpret = TRUE)
+
+wget -nc -P data/ ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR153/006/ERR1539006/ERR1539006.fastq.gz
+
+#---sequali is one function that runs many quality control functions for long and short reads.
+sequali --outdir outputs/sequali_reports data/ERR1539006.fastq.gz
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+# Biocmanager::install("quasr")
+
+library(QuasR)
+
+# Obtain a list of fastq file paths
+fastqFiles <- system.file(package="ShortRead",
+                          "extdata/E-MTAB-1147",
+                          c("ERR127302_1_subset.fastq.gz",
+                            "ERR127302_2_subset.fastq.gz")
+)
+
+# Defined processed fastq file names in the outputs folder
+outfiles <- paste0("outputs/", c("processed_1_", "processed_2_"), basename(fastqFiles))
+
+# Process fastq files
+# Remove reads that have more than 1 N, (nbases)
+# Trim 3 bases from the end of the reads (truncateendbases)
+# Remove ACCCGGGA patern if it occurs at the start (lpattern)
+# Remove reads shorter than 40 base-pairs (minlength)
+preprocessReads(fastqFiles, outfiles, 
+                nBases=1,
+                truncateEndBases=3,
+                Lpattern="ACCCGGGA",
+                minLength=40)
+
+library(ShortRead)
+
+# Obtain a list of fastq file paths
+fastqFile <- system.file(package="ShortRead",
+                          "extdata/E-MTAB-1147",
+                          "ERR127302_1_subset.fastq.gz")
+
+# Read fastq file
+fq = readFastq(fastqFile)
+
+# Get quality scores per base as a matrix
+qPerBase = as(quality(fq), "matrix")
+
+# Get number of bases per read that have quality score below 20
+# We use this
+qcount = rowSums( qPerBase <= 20) 
+
+# Number of reads where all phred scores >= 20
+fq[which(qcount == 0)]
+
+#We can finally write out the filtered fastq file with the ShortRead::writeFastq() function
+
+#mode = 'a' allows you to rewrite files that are already written
+ShortRead::writeFastq( fq[which(qcount == 0)], here::here("lab2_3/outputs/Qfiltered3.fastq"), mode = 'a') 
+
+# Set up streaming with block size 1000
+# Every time we call the yield() function 1000 read portion
+# Of the file will be read successively.
+f <- FastqStreamer(fastqFile,readerBlockSize=1000) 
+
+# We set up a while loop to call yield() function to
+# Go through the file
+while(length(fq <- yield(f))) {
+  
+    # remove reads where all quality scores are < 20 
+    # get quality scores per base as a matrix
+    qPerBase = as(quality(fq), "matrix")
+
+    # get number of bases per read that have Q score < 20
+    qcount = rowSums( qPerBase <= 20) 
+ 
+    # write fastq file with mode="a", so every new block
+    # is written out to the same file
+    writeFastq(fq[which(qcount == 0)], 
+               here::here("lab2_3/outputs", paste(basename(fastqFile), "Qfiltered.fastq", sep="_")), 
+               mode="a")
+}
+
+
+#---------------------------------ASSIGNMENT STARTS--------------------
+wget -nc -P data/ ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR112/040/ERR11203340/ERR11203340_1.fastq.gz
+wget -nc -P data/ ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR112/040/ERR11203340/ERR11203340_2.fastq.gz
